@@ -38,8 +38,11 @@ class Ball:
 def rand_point(xyz_min, xyz_max):
     return np.array([rd.randint(xyz_min[0], xyz_max[0]), rd.randint(xyz_min[1], xyz_max[1]), rd.randint(xyz_min[2], xyz_max[2])])
 
-def cubic_movement_gen(xyz_min, xyz_max, max_time, max_target_speed, distance):
-    plan = [rand_point(xyz_min, xyz_max)]
+def cubic_movement_gen(xyz_min, xyz_max, max_time, max_target_speed, distance, start_point=None):
+    if start_point is None:
+        plan = [rand_point(xyz_min, xyz_max)]
+    else:
+        plan = [start_point]
     times = [0]
     if max_target_speed == 0:
         #static target
@@ -69,7 +72,7 @@ def cubic_movement_gen(xyz_min, xyz_max, max_time, max_target_speed, distance):
         
         
 class GameViewer:
-    def __init__(self, width=1000, height=600, target_xyz = np.array([180, -20, -20], dtype=float), max_time = 100, max_target_speed = 1, step_target_distance = 40):
+    def __init__(self, width=1000, height=600, target_xyz = None, max_time = 100, max_target_speed = 1, step_target_distance = 40, shoot_skip = 10):
         #windows is list with names of windows (len 0 or 1)
         self.windows = []
         self.name = 'MOUGAME'
@@ -159,13 +162,8 @@ class GameViewer:
         self.target_r = 10
         xyz_min = np.array([-self.plot_size[0]//2+self.target_r, -self.plot_size[1]//2+self.target_r, -self.plot_size[1]//2+self.target_r], dtype=int)
         xyz_max = -xyz_min
-        self.target_x, self.target_y, self.target_z = cubic_movement_gen(xyz_min, xyz_max, max_time, max_target_speed, step_target_distance) 
+        self.target_x, self.target_y, self.target_z = cubic_movement_gen(xyz_min, xyz_max, max_time, max_target_speed, step_target_distance, target_xyz) 
         self.target_xyz = np.array([self.target_x(0), self.target_y(0), self.target_z(0)], dtype=int)
-        #TODO
-        #if target_xyz is not None:
-        #    self.target_xyz = target_xyz
-        #else:
-        #    self.target_xyz = np.array([rd.randint(-self.plot_size[0]//2, self.plot_size[0]//2),rd.randint(-self.plot_size[1]//2, self.plot_size[1]//2),rd.randint(-self.plot_size[1]//2, self.plot_size[1]//2)], dtype=float)
         
         ## Model
         self.angle_xz = float(0)
@@ -178,7 +176,7 @@ class GameViewer:
         self.beta = 0.07
         self.ball_r = 5
         
-        self.shoot_skip = 10
+        self.shoot_skip = shoot_skip
         
         self.score = 0
         ## Noize
