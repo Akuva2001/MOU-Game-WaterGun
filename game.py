@@ -3,8 +3,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 import random as rd
+from scipy import interpolate
 
-rd.seed(42)
+#rd.seed(42)
 
 def rand_color():
     return (rd.randint(0, 255), rd.randint(0, 255), rd.randint(0, 255))
@@ -34,9 +35,41 @@ class Ball:
         #ballistic
         else:
             return self.start + 1/self.beta*(self.start_speed - self.g/self.beta)*(1-np.exp(-self.beta*(time-self.start_time))) + self.g/self.beta*(time-self.start_time)
+def rand_point(xyz_min, xyz_max):
+    return np.array([rd.randint(xyz_min[0], xyz_max[0]), rd.randint(xyz_min[1], xyz_max[1]), rd.randint(xyz_min[2], xyz_max[2])])
+
+def cubic_movement_gen(xyz_min, xyz_max, max_time, max_target_speed, distance):
+    plan = [rand_point(xyz_min, xyz_max)]
+    times = [0]
+    if max_target_speed == 0:
+        #static target
+        x = lambda t: plan[0][0]
+        y = lambda t: plan[0][1]
+        z = lambda t: plan[0][2]
+        return x, y, z
+    else:
+        i = 0
+        distance3d = np.array([distance, distance, distance], dtype=int)
+        while times[i]<1.5*max_time or len(times)<10:
+            oldPoint = plan[i]
+            new_xyz_min = np.maximum(xyz_min, oldPoint - distance3d)
+            new_xyz_max = np.minimum(xyz_max, oldPoint + distance3d)
+            new_point = rand_point(new_xyz_min, new_xyz_max)
+            plan+=[new_point]
+            time = times[i]
+            times += [time + radius(new_point - oldPoint)/max_target_speed]
+            i+=1
+    plan = np.array(plan)
+    #print(plan[:, 0])
+    #print(times)
+    x = interpolate.interp1d(times, plan[:, 0], kind='cubic', fill_value="extrapolate")
+    y = interpolate.interp1d(times, plan[:, 1], kind='cubic', fill_value="extrapolate")
+    z = interpolate.interp1d(times, plan[:, 2], kind='cubic', fill_value="extrapolate")
+    return x, y, z
+        
         
 class GameViewer:
-    def __init__(self, width=1000, height=600, target_xyz = np.array([180, -20, -20], dtype=float)):
+    def __init__(self, width=1000, height=600, target_xyz = np.array([180, -20, -20], dtype=float), max_time = 100, max_target_speed = 1, step_target_distance = 40):
         #windows is list with names of windows (len 0 or 1)
         self.windows = []
         self.name = 'MOUGAME'
@@ -124,11 +157,15 @@ class GameViewer:
         
         self.target_color = (0, 0, 255)
         self.target_r = 10
+        xyz_min = np.array([-self.plot_size[0]//2+self.target_r, -self.plot_size[1]//2+self.target_r, -self.plot_size[1]//2+self.target_r], dtype=int)
+        xyz_max = -xyz_min
+        self.target_x, self.target_y, self.target_z = cubic_movement_gen(xyz_min, xyz_max, max_time, max_target_speed, step_target_distance) 
+        self.target_xyz = np.array([self.target_x(0), self.target_y(0), self.target_z(0)], dtype=int)
         #TODO
-        if target_xyz is not None:
-            self.target_xyz = target_xyz
-        else:
-            self.target_xyz = np.array([rd.randint(-self.plot_size[0]//2, self.plot_size[0]//2),rd.randint(-self.plot_size[1]//2, self.plot_size[1]//2),rd.randint(-self.plot_size[1]//2, self.plot_size[1]//2)], dtype=float)
+        #if target_xyz is not None:
+        #    self.target_xyz = target_xyz
+        #else:
+        #    self.target_xyz = np.array([rd.randint(-self.plot_size[0]//2, self.plot_size[0]//2),rd.randint(-self.plot_size[1]//2, self.plot_size[1]//2),rd.randint(-self.plot_size[1]//2, self.plot_size[1]//2)], dtype=float)
         
         ## Model
         self.angle_xz = float(0)
@@ -152,6 +189,7 @@ class GameViewer:
         self.angle_xy, self.angle_xz = angle_xy, angle_xz
         self.step += 1
         self.time = self.dt*self.step
+        self.target_xyz = np.array([self.target_x(self.time), self.target_y(self.time), self.target_z(self.time)], dtype=int)
         if self.step % self.shoot_skip == 0:
             self.balls.append(Ball(self.time, coords(self.angle_xy, self.angle_xz, self.emitter_r, float), 
                                    self.speed, self.angle_xy, self.angle_xz, self.g, self.beta, self.ball_r, rand_color()))#color=(100, 255, 0)))
@@ -183,9 +221,9 @@ class GameViewer:
         yz = self.target_xyz[[2, 1]].astype(int)
         xz = self.target_xyz[[0, 2]].astype(int)
         #print(xyz, self.target_r)
-        cv2.circle(im, self.xy0+xy*[1, 1], self.target_r, self.target_color, self.sphere_line_width)
-        cv2.circle(im, self.yz0+yz*[1, 1], self.target_r, self.target_color, self.sphere_line_width)
-        cv2.circle(im, self.xz0+xz*[1, 1], self.target_r, self.target_color, self.sphere_line_width)
+        cv2.circle(im_xy, self.xy0_relative+xy*[1, 1], self.target_r, self.target_color, self.sphere_line_width)
+        cv2.circle(im_yz, self.yz0_relative+yz*[1, 1], self.target_r, self.target_color, self.sphere_line_width)
+        cv2.circle(im_xz, self.xz0_relative+xz*[1, 1], self.target_r, self.target_color, self.sphere_line_width)
         
         #gun
         cv2.line(im, self.xy0, self.xy0+coords(self.angle_xy, self.angle_xz, self.emitter_r)[[0, 1]], self.emitter_color, self.emitter_line_width)
